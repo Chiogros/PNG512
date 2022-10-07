@@ -1,71 +1,94 @@
 org 0x7c00		; move to MBR start address
+bits 16
 
-mov ah, 00h		; set video mode
-mov al, 13h		; 320x200 graphic 256/256K col. VGA
-int 10h			; video services
+; .rodata
+img:
+	.width:			db 	19h			; width  = 10
+	.height:		db 	19h			; height = 5
+	; Colors are encoded with 4 bits.
+	; Hence, each byte has the color of two pixels:
+	; | px1  | px2  |
+	; | 0000 | 0000 |
+	; see available colors -> https://en.wikipedia.org/wiki/BIOS_color_attributes
+	.pixels:		db 	0xAA, 0xBB, 0xAA, 0xBB, 0xAA, 0xBB, 0xAA, 0xBB 
 
-xor cl, cl		; set pixel number = 0
 
-; Calculate pixel quantity
-mov al, width
-mov ah, height
-mul al
-push ax
+; .text
+_start: 			mov 	ah, 00h			; set video mode
+				mov 	al, 13h			; 320x200 graphic 256/256K col. VGA
+				int 	10h			; video services
 
-print_rows:	cmp cl, height	; if all lines have been written
-		je end
-		push cx		; save y
-		
-		mov bl, cl	; y as arg0
-		xor cl, cl	; initialize x = 0, as arg1
-		call print_row_pixels
+				xor 	bl, bl			; set y = 0
 
-		pop cx		; get back row number
-		add cl, 1	; iterate to the next line
-		jmp print_rows	; loop over lines
+print_img:			cmp 	bl, [img.height]		; if all lines have been written
+				je 	end
+				push 	bx			; save y
+				
+				xor 	cl, cl			; initialize x = 0, as arg1
+				call 	print_row
 
-print_row_pixels:	cmp cl, width	; if not all pixels have been written
-			jne print_row_pixels_continue
-			ret
+				pop 	bx			; get back row number
+				inc 	bl			; iterate to the next line
+				jmp 	print_img		; loop over lines
 
-print_row_pixels_continue:	push bx		; save y
-				push cx		; save x
-				call get_color
+print_row:			cmp 	cl, [img.width]; if not all pixels have been written
+				jb 	print_row_pixel
+				ret
 
-				pop cx		; restore x
-				pop bx		; restore y
-				push cx		; save x
+print_row_pixel:		push 	bx			; save y
+				push 	cx			; save x
+				call 	get_color
 
-				call print_pixel	; print pixel(ax: color, cx: x, dx: y)
+				pop 	cx			; restore x
+				pop 	bx			; restore y
+				xor 	dx, dx
+				mov 	dl, bl			; set y in dx
+				push 	bx			; save y
+				push 	cx			; save x
+				call 	print_pixel		; print pixel(ax: color, cx: x, dx: y)
 
-				pop cx		; restore x
-				add cl, 1
-				jmp print_row_pixels
+				pop 	cx			; restore x
+				pop 	bx			; restore y
+				inc 	cl			; increase pixel index
 
-get_color:	mov al, bl
-		mov ah, width
-		mul ah		; y * width
+				jmp 	print_row
 
-		add ax, cx	; + x
-		mov bx, img	; mv img[] addr in bx
-		add bx, ax	; point to wanted char
+get_color:			mov 	al, bl			;   y
+				mov 	ah, [img.width]		;       width
+				mul 	ah			;   y * width
+				add 	ax, cx			;  (y * width) + x = pixel number
+				
+				xor	bx, bx			; clean up for division
+				xor	cx, cx			; clean up for division
+				xor	dx, dx			; clean up for division
 
-		mov ax, [bx]	; read wanted char
-		ret
+				mov 	bx, 2h			; set divisor to 2, as colors are encoded over 4 bits
+				div 	bx			; ((y * width) + x) / 2 = pixel byte number
 
-print_pixel:	mov ah, 0ch	; write graphics pixel
-		mov bh, 0	; page number
-		;mov al, 4
-		;mov cx, 128
-		;mov dx, 128
-		int 10h		; video services
-		ret
+				mov 	dx, ax			; used to copy al into bx
+				and 	dx, 0x00FF		; keep al only
 
-end:
+				mov 	bx, img.pixels		; &pixels[0]
+				add 	bx, dx			; &pixels[pixel byte]
 
-img 	db aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah, aah
-width 	db 0x0F		; width  = 28
-height 	db 02h		; height = 28
+				mov 	cx, ax			; used to check if we are getting an even or odd pixel color
+				mov 	ax, [bx]		; read byte 
+				mov 	al, ah			; get odd pixel color
 
-times 510-($-$$) db 0	; padding & magic number
-dw 0xAA55		; Boot signature
+				cmp 	ch, 0			; if (pixel number % 2 == 0)
+				je 	get_color_even_pixel
+				;sar 	al, 4
+
+get_color_even_pixel:		mov 	al, 0xC 
+				ret
+
+print_pixel:			mov 	ah, 0ch			; write graphics pixel
+				mov 	bh, 0			; page number
+				;mov 	al, 0xF
+				;mov 	cx, 128
+				;mov 	dx, 128
+				int 	10h			; video services
+				ret
+
+end:				times 	510-($-$$) db 0		; padding
+				dw 	0xAA55			; Boot signature
