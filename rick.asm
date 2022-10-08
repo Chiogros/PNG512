@@ -1,16 +1,5 @@
 org 0x7c00		; move to MBR start address
-bits 16
-
-; .rodata
-img:
-	.width:			db 	19h			; width  = 10
-	.height:		db 	19h			; height = 5
-	; Colors are encoded with 4 bits.
-	; Hence, each byte has the color of two pixels:
-	; | px1  | px2  |
-	; | 0000 | 0000 |
-	; see available colors -> https://en.wikipedia.org/wiki/BIOS_color_attributes
-	.pixels:		db 	0xAA, 0xBB, 0xAA, 0xBB, 0xAA, 0xBB, 0xAA, 0xBB 
+bits 16			; we work with 16 bits
 
 
 ; .text
@@ -20,10 +9,27 @@ _start: 			mov 	ah, 00h			; set video mode
 
 				xor 	bl, bl			; set y = 0
 
-print_img:			cmp 	bl, [img.height]		; if all lines have been written
+
+; .rodata
+img:
+	.width			db	162
+	.height			db	5
+	; Colors are encoded with 4 bits.
+	; Hence, each byte has the color of two pixels:
+	; | px1  | px2  |
+	; | 0000 | 0000 |
+	; | A    | A    |
+	; So, you have to set: (width x height) / 2 bytes.
+	; See available colors -> https://en.wikipedia.org/wiki/BIOS_color_attributes
+	; PS: little endian, so if you want to display pixels 0x0123, you have to write 0x3210
+	.pixels			dw	0x3210, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567
+
+
+; .text
+print_img:			cmp 	bl, [img.height]	; if all lines have been written
 				je 	end
 				push 	bx			; save y
-				
+
 				xor 	cl, cl			; initialize x = 0, as arg1
 				call 	print_row
 
@@ -31,7 +37,7 @@ print_img:			cmp 	bl, [img.height]		; if all lines have been written
 				inc 	bl			; iterate to the next line
 				jmp 	print_img		; loop over lines
 
-print_row:			cmp 	cl, [img.width]; if not all pixels have been written
+print_row:			cmp 	cl, [img.width]		; if not all pixels have been written
 				jb 	print_row_pixel
 				ret
 
@@ -65,30 +71,23 @@ get_color:			mov 	al, bl			;   y
 				mov 	bx, 2h			; set divisor to 2, as colors are encoded over 4 bits
 				div 	bx			; ((y * width) + x) / 2 = pixel byte number
 
-				mov 	dx, ax			; used to copy al into bx
-				and 	dx, 0x00FF		; keep al only
+				mov 	bx, img.pixels		; &pixels
+				add 	bx, ax			; &pixels[pixel byte]
+				mov	bl, [bx]		; pixels[pixel byte]
 
-				mov 	bx, img.pixels		; &pixels[0]
-				add 	bx, dx			; &pixels[pixel byte]
+				mov	al, 4			; bits to shift
+				mul	dx			; ax = 0 || ax = 4
 
-				mov 	cx, ax			; used to check if we are getting an even or odd pixel color
-				mov 	ax, [bx]		; read byte 
-				mov 	al, ah			; get odd pixel color
-
-				cmp 	ch, 0			; if (pixel number % 2 == 0)
-				je 	get_color_even_pixel
-				;sar 	al, 4
-
-get_color_even_pixel:		mov 	al, 0xC 
+				mov	cl, al			; cl for dynamic shift number
+				shr 	bl, cl			; shift pixel color if it's an odd pixel
+				and	bl, 0Fh			; keep 4 last bits, in case there was no shifting
+				mov	al, bl			; get pixel color
 				ret
 
 print_pixel:			mov 	ah, 0ch			; write graphics pixel
 				mov 	bh, 0			; page number
-				;mov 	al, 0xF
-				;mov 	cx, 128
-				;mov 	dx, 128
 				int 	10h			; video services
 				ret
 
-end:				times 	510-($-$$) db 0		; padding
+end: 				times 	510-($-$$) db 0		; padding
 				dw 	0xAA55			; Boot signature
