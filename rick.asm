@@ -12,8 +12,8 @@ _start: 			mov 	ah, 00h			; set video mode
 
 ; .rodata
 img:
-	.width			db	162
-	.height			db	5
+	.width			db	27			; image width must be < 256
+	.height			db	30			; image height must be < 256
 	; Colors are encoded with 4 bits.
 	; Hence, each byte has the color of two pixels:
 	; | px1  | px2  |
@@ -47,7 +47,7 @@ print_row_pixel:		push 	bx			; save y
 
 				pop 	cx			; restore x
 				pop 	bx			; restore y
-				xor 	dx, dx
+				xor 	dx, dx			; reset dx
 				mov 	dl, bl			; set y in dx
 				push 	bx			; save y
 				push 	cx			; save x
@@ -57,7 +57,7 @@ print_row_pixel:		push 	bx			; save y
 				pop 	bx			; restore y
 				inc 	cl			; increase pixel index
 
-				jmp 	print_row
+				jmp 	print_row		; loop over the next pixel
 
 get_color:			mov 	al, bl			;   y
 				mov 	ah, [img.width]		;       width
@@ -81,7 +81,7 @@ get_color:			mov 	al, bl			;   y
 				mov	cl, al			; cl for dynamic shift number
 				shr 	bl, cl			; shift pixel color if it's an odd pixel
 				and	bl, 0Fh			; keep 4 last bits, in case there was no shifting
-				mov	al, bl			; get pixel color
+				mov	al, bl			; return pixel color
 				ret
 
 print_pixel:			mov 	ah, 0ch			; write graphics pixel
