@@ -3,66 +3,99 @@
 import sys
 from PIL import Image
 
+# BIOS colors
 colors = {
-    (  0,   0,   0): '0',
-    (  0,   0, 170): '1',
-    (  0, 170,   0): '2',
-    (  0, 170, 170): '3',
-    (170,   0,   0): '4',
-    (170,   0, 170): '5',
-    (170,  85,   0): '6',
-    (170, 170, 170): '7',
-    ( 85,  85,  85): '8',
-    ( 85,  85, 255): '9',
-    ( 85, 255,  85): 'a',
-    ( 85, 255, 255): 'b',
-    (255,  85,  85): 'c',
-    (255,  85, 255): 'd',
-    (255, 255,  85): 'e',
-    (255, 255, 255): 'f'
-}
+        (  0,   0,   0): '0',
+        (  0,   0, 170): '1',
+        (  0, 170,   0): '2',
+        (  0, 170, 170): '3',
+        (170,   0,   0): '4',
+        (170,   0, 170): '5',
+        (170,  85,   0): '6',
+        (170, 170, 170): '7',
+        ( 85,  85,  85): '8',
+        ( 85,  85, 255): '9',
+        ( 85, 255,  85): 'a',
+        ( 85, 255, 255): 'b',
+        (255,  85,  85): 'c',
+        (255,  85, 255): 'd',
+        (255, 255,  85): 'e',
+        (255, 255, 255): 'f'
+        }
+
+
+def get_px_colors(img) -> []:
+    (width, height) = img.size
+
+    px_colors = []
+
+    # Loop over image pixels
+    for y in range(height):
+        for x in range(width):
+            # Get pixel color
+            px = img.getpixel((x, y))
+
+            # Ignore alpha value
+            (r, g, b, _) = px
+            px = (r, g, b)
+
+            # Check color is part of BIOS colors list
+            if px not in colors:
+                print(f"{px} at ({x}, {y}) is not allowed!")
+                print(f"Color must be in: {colors.keys()}")
+                return
+
+            px_colors.append(colors.get(px))
+
+    return px_colors
+
+
+def colors2asm(px_colors) -> []:
+    words_and_bytes = []
+    words_and_bytes.append([])  # Store words
+    words_and_bytes.append([])  # Store last byte (if any)
+
+    # If odd number of pixels, add a pixel, which will not be displayed
+    # but the last pixel will be stored on a byte with it.
+    if len(px_colors) % 2:
+        px_colors.append('0')
+
+    # Make words list
+    while len(px_colors) >= 4:
+        word = ''
+        # Get a 4 pixels word
+        for i in range(4):
+            word += px_colors.pop(0)
+        # Reverse them all, for little-endian
+        word = word [::-1]
+
+        # Write the hex code
+        word_hex = "0x" + word
+        words_and_bytes[0].append(word_hex)
+
+    # Make last byte
+    if len(px_colors) == 2:
+        words_and_bytes[1].append("0x"
+                                  + px_colors.pop(1)    # Reverse order for little endian
+                                  + px_colors.pop(0))
+
+    return words_and_bytes
 
 
 def png2hex(filename):
     with Image.open(filename) as img:
-        (width, height) = img.size
-        print("Image is", width, "x", height, "pixels.")
+        print("Image is", img.width, "x", img.height, "pixels.")
         print("Please make sure image is not too large, check README.md.\n")
 
-        bytes = []
-        first_px_pair = 0
+        px_colors = get_px_colors(img)
+        words_and_bytes = colors2asm(px_colors)
 
-        # Loop over image pixels
-        for y in range(height):
-            for x in range(width):
-                # Get pixel color
-                px = img.getpixel((x, y))
-
-                # Ignore alpha value
-                (r, g, b, _) = px
-                px = (r, g, b)
-
-                # Check color is part of BIOS colors list
-                if px not in colors:
-                    print(f"{px} at ({x}, {y}) is not allowed!")
-                    print(f"Color must be in: {colors.keys()}")
-                    return
-
-                # Pixels are encoded over 4 bits, so we can set 2 px / bytes.
-                # We check if we have a 2nd pixel to build a byte.
-                is_odd_px = (y * width + x) % 2
-                if is_odd_px:
-                    # Build byte with two pixels value
-                    bytes.append("0x" +
-                                 colors.get(px) +
-                                 colors.get(first_px_pair))
-                else:
-                    # Store px for later byte build
-                    first_px_pair = px
-
-        # Print bytecode
         print("Bytecode of the image, to use in .asm file: ")
-        print(','.join(bytes))
+        # Print words
+        print("\t.pixels\t\t\tdw\t", ', '.join(words_and_bytes[0]))
+        # Print byte if any
+        if len(words_and_bytes[1]):
+            print("\t\t\t\tdb\t", words_and_bytes[1][0])
 
 
 if __name__ == "__main__":
