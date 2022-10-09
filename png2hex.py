@@ -27,7 +27,8 @@ def png2hex(filename):
     with Image.open(filename) as img:
         (width, height) = img.size
         print("Image is", width, "x", height, "pixels.")
-        print("Please make sure image is not too large, check README.md.\n")
+        print("Make sure image is not too large before using it, ", end="")
+        print("please check the README.md.\n")
 
         bytes = []
         first_px_pair = 0
@@ -59,6 +60,11 @@ def png2hex(filename):
                 else:
                     # Store px for later byte build
                     first_px_pair = px
+
+        # If there are an odd number of pixels
+        if width * height % 2:
+            # Add the last pixel in a byte
+            bytes.append("0x0" + colors.get(first_px_pair))
 
         # Print bytecode
         print("Bytecode of the image, to use in .asm file: ")
