@@ -65,7 +65,10 @@ Reference: [BIOS color attributes](https://en.wikipedia.org/wiki/BIOS_color_attr
 
 
 ## Images
-![Rickroll pixel art](https://github.com/Chiogros/PNG512/raw/main/images/rick.png)
-![Rickroll on x86-i386 QEMU](https://github.com/Chiogros/PNG512/raw/main/images/rick.png)
+**Rickroll pixel art**
+<img src="https://github.com/Chiogros/PNG512/raw/main/images/rick.png" alt="Rickroll pixel art" width="200"/>
+
+**Rickroll on i386 QEMU**
+![Rickroll on x86-i386 QEMU](https://github.com/Chiogros/PNG512/raw/main/images/screenshot.png)
 
 
